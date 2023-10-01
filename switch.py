@@ -22,14 +22,11 @@ def get_database_engine():
     print("Which database engine do you want to use?")
     print("1. MSSQL-server")
     print("2. Aurora Postgres")
-    print("3. MySQL")
     choice = input("Enter the number corresponding to the database engine: ")
     if choice == "1":
         return "mssql"
     elif choice == "2":
         return "aurora-postgres"
-    elif choice == "3":
-        return "mysql"
     else:
         print("Invalid choice. Please try again.")
         return get_database_engine()
@@ -44,10 +41,6 @@ def execute_terraform_init(terraform_directory, engine):
     elif engine == "aurora-postgres":
         terraform_directory += "/Aurora-PostgreSQL/Cluster"
         subprocess.call(["terraform", "init", "-reconfigure", "-backend-config=bucket=terraform-patching-statefiles", "-backend-config=key=RDS/Aurora-Postgresql/Cluster/terraform.tfstate", "-backend-config=region=eu-west-1"], cwd=terraform_directory)
-        subprocess.call(["terraform", "apply"], cwd=terraform_directory)
-    elif engine == "mysql":
-        terraform_directory += "/MySQL/Cluster"
-        subprocess.call(["terraform", "init", "-reconfigure", "-backend-config=bucket=terraform-patching-statefiles", "-backend-config=key=RDS/" + engine + "/Cluster/terraform.tfstate", "-backend-config=region=eu-west-1"], cwd=terraform_directory)
         subprocess.call(["terraform", "apply"], cwd=terraform_directory)
     else:
         print("Invalid engine. Please try again.")
@@ -82,8 +75,6 @@ def create_or_verify_replica(client, primary_db_identifier):
             terraform_directory += "/MSSQL-Server/Read-Replica"
         elif primary_db_identifier.startswith("primary"):
             terraform_directory += "/Aurora-PostgreSQL/Read-Replica"
-        elif primary_db_identifier.startswith("mysql"):
-            terraform_directory += "/MySQL/Read-Replica"
         else:
             print("Invalid primary DB identifier. Please try again.")
             exit(1)
@@ -94,9 +85,6 @@ def create_or_verify_replica(client, primary_db_identifier):
                 subprocess.call(["terraform", "apply"], cwd=terraform_directory)
             elif primary_db_identifier.startswith("primary"):
                 subprocess.call(["terraform", "init", "-reconfigure", "-backend-config=bucket=terraform-patching-statefiles", "-backend-config=key=RDS/Aurora-Postgresql/Replica/terraform.tfstate", "-backend-config=region=eu-west-1"], cwd=terraform_directory)
-                subprocess.call(["terraform", "apply"], cwd=terraform_directory)
-            elif primary_db_identifier.startswith("mysql"):
-                subprocess.call(["terraform", "init", "-reconfigure", "-backend-config=bucket=terraform-patching-statefiles", "-backend-config=key=RDS/" + primary_db_identifier + "-replica/terraform.tfstate", "-backend-config=region=eu-west-1"], cwd=terraform_directory)
                 subprocess.call(["terraform", "apply"], cwd=terraform_directory)
             else:
                 print("Invalid primary DB identifier. Please try again.")
