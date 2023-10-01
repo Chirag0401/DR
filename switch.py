@@ -1,125 +1,68 @@
 import boto3
 import subprocess
 import os
+import argparse
+import configparser
+import logging
 
-SECONDARY_REGION = 'eu-central-1'
+# Initialize logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger()
 
-def create_session(region, access_key, secret_access_key, session_token):
-    session = boto3.Session(
-        region_name=region,
-        aws_access_key_id=access_key,
-        aws_secret_access_key=secret_access_key,
-        aws_session_token=session_token,
+def create_session():
+    return boto3.Session(
+        region_name="eu-west-1",
+        aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
+        aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'),
+        aws_session_token=os.environ.get('AWS_SESSION_TOKEN'),
     )
-    return session
 
-def get_user_decision():
-    print("Do you want to create a new RDS instance or use an existing one?")
-    decision = input("Enter 'new' for a new instance, 'existing' for an existing one: ").strip().lower()
-    return decision
-
-def get_database_engine():
-    print("Which database engine do you want to use?")
-    print("1. MSSQL-server")
-    print("2. Aurora Postgres")
-    choice = input("Enter the number corresponding to the database engine: ")
-    if choice == "1":
-        return "mssql"
-    elif choice == "2":
-        return "aurora-postgres"
-    else:
-        print("Invalid choice. Please try again.")
-        return get_database_engine()
-
-def execute_terraform_init(terraform_directory, engine):
-    terraform_directory = "/home/ec2-user/DR-RDS"
-    os.chdir(terraform_directory)
-    if engine == "mssql":
-        terraform_directory += "/MSSQL-Server/Cluster"
-        subprocess.call(["terraform", "init", "-reconfigure", "-backend-config=bucket=terraform-patching-statefiles", "-backend-config=key=RDS/" + engine + "/Cluster/terraform.tfstate", "-backend-config=region=eu-west-1"], cwd=terraform_directory)
-        subprocess.call(["terraform", "apply"], cwd=terraform_directory)
-    elif engine == "aurora-postgres":
-        terraform_directory += "/Aurora-PostgreSQL/Cluster"
-        subprocess.call(["terraform", "init", "-reconfigure", "-backend-config=bucket=terraform-patching-statefiles", "-backend-config=key=RDS/Aurora-Postgresql/Cluster/terraform.tfstate", "-backend-config=region=eu-west-1"], cwd=terraform_directory)
-        subprocess.call(["terraform", "apply"], cwd=terraform_directory)
-    else:
-        print("Invalid engine. Please try again.")
-        exit(1)
-
-def setup_new_rds(terraform_directory, engine):
-    execute_terraform_init(terraform_directory, engine)
+def execute_terraform_init(engine, component, config):
+    terraform_path = os.path.join(config['PATHS']['TerraformDirectory'], engine, component)
+    os.chdir(terraform_path)
+    subprocess.call(["terraform", "init", "-reconfigure",
+                     f"-backend-config=bucket={config['TERRAFORM']['StatefileBucket']}",
+                     f"-backend-config=key=RDS/{engine}/{component}/terraform.tfstate",
+                     f"-backend-config=region=eu-west-1"], cwd=terraform_path)
+    subprocess.call(["terraform", "apply"], cwd=terraform_path)
 
 def search_rds_instance(client, db_identifier):
     try:
         response = client.describe_db_instances(DBInstanceIdentifier=db_identifier)
-        if response.get("DBInstances"):
-            return True
-        return False
+        return bool(response.get("DBInstances"))
     except client.exceptions.DBInstanceNotFoundFault:
         return False
 
-def use_existing_rds(client):
-    db_identifier = input("Please provide the DBIdentifier for the existing RDS instance: ")
-    if search_rds_instance(client, db_identifier):
-        print(f"RDS instance with DBIdentifier {db_identifier} found.")
-    else:
-        print(f"No RDS instance with DBIdentifier {db_identifier} found.")
-        exit(1)
-    return db_identifier
-
-def create_or_verify_replica(client, primary_db_identifier):
-    decision = input("Have you already created a read replica for this RDS instance? (yes/no): ").strip().lower()
-    if decision == 'no':
-        terraform_directory = "/home/ec2-user/DR-RDS"
-        if primary_db_identifier.startswith("mssql"):
-            terraform_directory += "/MSSQL-Server/Read-Replica"
-        elif primary_db_identifier.startswith("primary"):
-            terraform_directory += "/Aurora-PostgreSQL/Read-Replica"
-        else:
-            print("Invalid primary DB identifier. Please try again.")
-            exit(1)
-        os.chdir(terraform_directory)
-        try:
-            if primary_db_identifier.startswith("mssql"):
-                subprocess.call(["terraform", "init", "-reconfigure", "-backend-config=bucket=terraform-patching-statefiles", "-backend-config=key=RDS/MSSQL-Server/Replica/terraform.tfstate", "-backend-config=region=eu-west-1"], cwd=terraform_directory)
-                subprocess.call(["terraform", "apply"], cwd=terraform_directory)
-            elif primary_db_identifier.startswith("primary"):
-                subprocess.call(["terraform", "init", "-reconfigure", "-backend-config=bucket=terraform-patching-statefiles", "-backend-config=key=RDS/Aurora-Postgresql/Replica/terraform.tfstate", "-backend-config=region=eu-west-1"], cwd=terraform_directory)
-                subprocess.call(["terraform", "apply"], cwd=terraform_directory)
-            else:
-                print("Invalid primary DB identifier. Please try again.")
-                exit(1)
-        except Exception as e:
-            print(f"Error creating read replica: {e}")
-    else:
-        replica_name = input("Please provide the DBIdentifier of the existing read replica: ")
-        try:
-            response = client.describe_db_instances(DBInstanceIdentifier=replica_name)
-            if not response.get("DBInstances"):
-                print(f"No read replica with DBIdentifier {replica_name} found.")
-                exit(1)
-        except Exception as e:
-            print(f"Error verifying read replica: {e}")
-            exit(1)
-
 def main():
-    region = "eu-west-1"
-    access_key = ""
-    secret_access_key = ""
-    session_token = ""
+    parser = argparse.ArgumentParser(description="Manage RDS instances with Terraform.")
+    parser.add_argument("--config", default="config.ini", help="Path to configuration file.")
+    args = parser.parse_args()
 
-    session = create_session(region, access_key, secret_access_key, session_token)
+    # Read configuration from the file
+    config = configparser.ConfigParser()
+    config.read(args.config)
+
+    session = create_session()
     rds_client = session.client('rds')
 
-    decision = get_user_decision()
+    decision = input("Do you want to create a new RDS instance or use an existing one? [new/existing]: ").strip().lower()
+
     if decision == 'new':
-        engine = get_database_engine()
-        setup_new_rds("/home/ec2-user/DR-RDS/Cluster", engine)
+        engine = input("Which database engine do you want to use? [mssql/aurora-postgres/other]: ").strip().lower()
+        execute_terraform_init(engine, "Cluster", config)
     elif decision == 'existing':
-        db_identifier = use_existing_rds(rds_client)
-        create_or_verify_replica(rds_client, db_identifier)
-    else:
-        print("Invalid choice. Please try again.")
+        db_identifier = input("Please provide the DBIdentifier for the existing RDS instance: ").strip()
+        if search_rds_instance(rds_client, db_identifier):
+            logger.info(f"RDS instance with DBIdentifier {db_identifier} found.")
+            engine_mapping = {
+                "mssql": "mssql",
+                "primary": "aurora-postgres"
+                # Add more mappings if needed
+            }
+            engine = engine_mapping.get(db_identifier.split('-')[0], 'other')
+            execute_terraform_init(engine, "Read-Replica", config)
+        else:
+            logger.error(f"No RDS instance with DBIdentifier {db_identifier} found.")
 
 if __name__ == "__main__":
     main()
