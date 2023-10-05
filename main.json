@@ -1,0 +1,140 @@
+{
+	"aws_region_primary": "eu-west-1",
+	"aws_region_secondary": "eu-central-1",
+	"statefiles_s3_bucket": {
+	  "s3_bucket_name": "<bucketname>",
+	  "acl": "private",
+	  "keypath": "<tfpath>"
+	},
+	"db_subnet_group": {
+	  "count": "1",
+	  "name": "rds-subnet-group-poc",
+	  "description": "The rds-mssql private subnet group",
+	  "subnet": [
+		"subnet-00ae8786f5e50f36c",
+		"subnet-01760a44c01fdc4ec"
+	  ]
+	},
+	"db_subnet_group_secondary": {
+	  "count": "1",
+	  "name": "rds-subnet-group-poc-secondary",
+	  "description": "The rds-mssql private subnet group",
+	  "subnet": [
+		"subnet-0588cb7c2f1c645fe",
+		"subnet-00574261f153b8b94",
+		"subnet-01ce06a24963bf0c3"
+	  ]
+	},
+	"security_group": {
+	  "count": "1",
+	  "name": "rds-internal-poc",
+	  "description": "allow all vpc traffic to rds mssql",
+	  "vpc_id": "vpc-05398baa4fb7c969c",
+	  "ingress_rules": [
+		{
+		  "from_port": 1433,
+		  "to_port": 1433,
+		  "protocol": "TCP",
+		  "cidr_blocks": [
+			"10.140.238.0/24"
+		  ],
+		  "description": ""
+		}
+	  ]
+	},
+	"security_group_secondary": {
+	  "count": "1",
+	  "name": "rds-internal-poc-replica",
+	  "description": "allow all vpc traffic to rds mssql",
+	  "vpc_id": "vpc-0172a615ed88d9142",
+	  "ingress_rules": [
+		{
+		  "from_port": 1433,
+		  "to_port": 1433,
+		  "protocol": "TCP",
+		  "cidr_blocks": [
+			"172.31.0.0/16"
+		  ],
+		  "description": ""
+		}
+	  ]
+	},
+	"db_parameter_group_primary": {
+	  "name": "rds-pg",
+	  "family": "custom-sqlserver-ee-15.0",
+	  "count": 0,
+	  "parameters": [
+		{
+		  "name": "",
+		  "value": ""
+		}
+	  ]
+	},
+	"db_option_group_primary": {
+	  "name": "option-group-test",
+	  "desc": "Terraform Option Group",
+	  "engine_name": "sqlserver-ee-15-00",
+	  "major_engine_version": "15.00",
+	  "count": 0,
+		  "option_name": "Timezone",
+		  "option_setting_name": "TIME_ZONE",
+		  "option_setting_value": "UTC"
+	},
+	"aws_db_instance": {
+	  "identifier": "mssql-poc",
+	  "allocated_storage": "20",
+	  "license_model": "license-included",
+	  "publicly_accessible": "false",
+	  "storage_encrypted": "true",
+	  "storage_type": "io1",
+	  "engine": "sqlserver-ee",
+	  "engine_version": "15.00.4316.3.v1",
+	  "instance_class": "db.m5.xlarge",
+	  "multi_az": "true",
+	  "username": "admin",
+	  "password": "admin123",
+	  "auto_minor_version_upgrade": "false",
+	  "backup_retention_period": "3",
+	  "skip_final_snapshot": "false",
+	  "final_snapshot_identifier": "mssql-final-snapshot-poc",
+	  "enabled_cloudwatch_logs_exports": [
+		"agent",
+		"error"
+	  ],
+	  "deletion_protection": "false",
+	  "vpc_security_group_ids": [],
+	  "db_subnet_group": "",
+	  "max_allocated_storage": "1000",
+	  "backup_window": "09:46-10:16",
+	  "maintenance_window": "Sat:00:00-Sat:03:00",
+	  "iops": "1000",
+	  "parameter_group_name": "default.sqlserver-ee-15.0",
+      "option_group_name": "default:sqlserver-ee-15-00",
+	  "copy_tags": "true"
+	},
+	"aws_db_instance_replica": {
+	  "vpc_security_group_ids": [],
+	  "db_subnet_group": "",
+	  "identifier": "my-sql-server-read-replica-poc",
+	  "publicly_accessible": "false",
+	  "storage_encrypted": "true",
+	  "instance_class": "db.m5.xlarge",
+	  "auto_minor_version_upgrade": "false",
+	  "replicate_source_db": "arn:aws:rds:eu-west-1:872180613810:db:mssql-poc",
+	  "availability_zone": "eu-central-1a",
+	  "kms_key_id": "arn:aws:kms:eu-central-1:872180613810:key/1ded130b-a75f-44e1-ab25-99d03051dba2",
+	  "enabled_cloudwatch_logs_exports": [
+		"agent",
+		"error"
+	  ],
+	  "deletion_protection": "false",
+	  "max_allocated_storage": "1000",
+	  "copy_tags": "true"
+	},
+	"r53_primary": {
+	  "zone_name": "patch.bcs.local",
+	  "name": "database-primary.mssql.com",
+	  "type": "CNAME",
+	  "ttl": "300"
+	}
+  }
