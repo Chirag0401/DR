@@ -19,6 +19,12 @@ def create_session():
 
 def execute_terraform_init(engine, component, config):
     terraform_path = os.path.join(config['PATHS']['TerraformDirectory'], engine, component)
+    
+    # Check if the terraform path exists
+    if not os.path.exists(terraform_path):
+        logger.error(f"Terraform path '{terraform_path}' does not exist.")
+        return
+    
     os.chdir(terraform_path)
     subprocess.call(["terraform", "init", "-reconfigure",
                      f"-backend-config=bucket={config['TERRAFORM']['StatefileBucket']}",
@@ -48,15 +54,15 @@ def main():
     decision = input("Do you want to create a new RDS instance or use an existing one? [new/existing]: ").strip().lower()
 
     if decision == 'new':
-        engine = input("Which database engine do you want to use? [mssql/aurora-postgres/other]: ").strip().lower()
+        engine = input("Which database engine do you want to use? [MSSQL-Server/Aurora-PostgreSQL/other]: ").strip()
         execute_terraform_init(engine, "Cluster", config)
     elif decision == 'existing':
         db_identifier = input("Please provide the DBIdentifier for the existing RDS instance: ").strip()
         if search_rds_instance(rds_client, db_identifier):
             logger.info(f"RDS instance with DBIdentifier {db_identifier} found.")
             engine_mapping = {
-                "mssql": "mssql",
-                "primary": "aurora-postgres"
+                "mssql": "MSSQL-Server",
+                "primary": "Aurora-PostgreSQL"
                 # Add more mappings if needed
             }
             engine = engine_mapping.get(db_identifier.split('-')[0], 'other')
