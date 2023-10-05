@@ -72,3 +72,27 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+
+.
+├── Aurora-PostgreSQL
+│   ├── Cluster
+│   │   └── main.tf
+│   ├── main.json
+│   └── Read-Replica
+│       └── main.tf
+├── MSSQL-Server
+│   ├── Cluster
+│   │   └── main.tf
+│   ├── Projects
+│   │   └── Env
+│   │       └── patch.json
+│   └── Read-Replica
+│       └── main.tf
+└── python-scripts
+    ├── config.ini
+    ├── rds-switch-dr.py
+    └── switch.py
+
